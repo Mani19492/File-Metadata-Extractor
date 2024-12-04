@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Metadata Viewer</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+</head>
+<body>
+
+    <section>
+        <div class="container">
+            <div class="folder">
+                <div class="front-side">
+                    <div class="tip"></div>
+                    <div class="cover"></div>
+                </div>
+                <div class="back-side cover"></div>
+            </div>
+            <label class="custom-file-upload">
+                <input class="title" type="file" id="fileInput"/>
+                Choose a file
+            </label>
+        </div>
+    </section>
+
+    <section>
+        <div class="box">
+            <div class="terminal_toolbar">
+                <div class="butt">
+                    <button class="btn btn-color"></button>
+                    <button class="btn"></button>
+                    <button class="btn"></button>
+                </div>
+                <p class="user">user@admin: ~</p>
+                <div class="add_tab">+</div>
+            </div>
+            <div class="terminal_body">
+                <div class="terminal_output" id="terminalOutput">
+                    <pre class="output_text">Welcome to Terminal</pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
+    
+    <script>
+    document.getElementById("fileInput").addEventListener("change", async function (event) {
+        const file = event.target.files[0];
+        if (file) {
+            const fileType = file.type;
+            const terminalOutput = document.getElementById("terminalOutput");
+            
+            let metadataOutput = `\nFile Name: ${file.name}\nFile Type: ${fileType}\nFile Size: ${file.size} bytes\n`;
+    
+            // Image Metadata Extraction
+            if (fileType.startsWith("image")) {
+                const exifData = await extractImageMetadata(file);
+                metadataOutput += `\nImage EXIF Data:\nMake: ${exifData.Make}\nModel: ${exifData.Model}\nXResolution: ${exifData.XResolution}\nYResolution: ${exifData.YResolution}\nResolutionUnit: ${exifData.ResolutionUnit}\nSoftware: ${exifData.Software}\nDateTime: ${exifData.DateTime}\nExposureTime: ${exifData.ExposureTime}\nFNumber: ${exifData.FNumber}\nExposureProgram: ${exifData.ExposureProgram}\nISOSpeedRatings: ${exifData.ISOSpeedRatings}\nExifVersion: ${exifData.ExifVersion}\nDateTimeOriginal: ${exifData.DateTimeOriginal}\nFlash: ${exifData.Flash}\nFocalLength: ${exifData.FocalLength}\nWhiteBalance: ${exifData.WhiteBalance}\n`;
+    
+                // Geo-location Data (if available)
+                if (exifData.GPSLatitude && exifData.GPSLongitude) {
+                    metadataOutput += `Geo-Location: Latitude: ${exifData.GPSLatitude}, Longitude: ${exifData.GPSLongitude}\n`;
+                } else {
+                    metadataOutput += "No GPS data found.\n";
+                }
+            }
+            // PDF Metadata Extraction
+            else if (fileType === "application/pdf") {
+                const metadata = await extractPdfMetadata(file);
+                metadataOutput += `PDF Metadata:\n${metadata}\n`;
+            }
+            // Word Document (DOCX) Metadata Extraction
+            else if (fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+                const metadata = await extractDocMetadata(file);
+                metadataOutput += `DOCX Metadata:\n${metadata}\n`;
+            }
+            // PowerPoint Metadata Extraction
+            else if (fileType.startsWith("application/vnd.ms-powerpoint")) {
+                const metadata = await extractPptMetadata(file);
+                metadataOutput += `PPT Metadata:\n${metadata}\n`;
+            }
+            // Video Metadata Extraction (Using Video Metadata)
+            else if (fileType.startsWith("video")) {
+                const metadata = await extractVideoMetadata(file);
+                metadataOutput += `Video Metadata:\n${metadata}\n`;
+            }
+            // Audio Metadata Extraction
+            else if (fileType.startsWith("audio")) {
+                const metadata = await extractAudioMetadata(file);
+                metadataOutput += `Audio Metadata:\n${metadata}\n`;
+            }
+            else {
+                metadataOutput += "Unsupported file type.\n";
+            }
+    
+            terminalOutput.innerText += metadataOutput;
+        }
+    });
+    
+    // Extract EXIF data for image
+    async function extractImageMetadata(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                const img = new Image();
+                img.onload = function () {
+                    EXIF.getData(img, function () {
+                        const exifData = {
+                            Make: EXIF.getTag(this, "Make"),
+                            Model: EXIF.getTag(this, "Model"),
+                            XResolution: EXIF.getTag(this, "XResolution"),
+                            YResolution: EXIF.getTag(this, "YResolution"),
+                            ResolutionUnit: EXIF.getTag(this, "ResolutionUnit"),
+                            Software: EXIF.getTag(this, "Software"),
+                            DateTime: EXIF.getTag(this, "DateTime"),
+                            ExposureTime: EXIF.getTag(this, "ExposureTime"),
+                            FNumber: EXIF.getTag(this, "FNumber"),
+                            ExposureProgram: EXIF.getTag(this, "ExposureProgram"),
+                            ISOSpeedRatings: EXIF.getTag(this, "ISOSpeedRatings"),
+                            ExifVersion: EXIF.getTag(this, "ExifVersion"),
+                            DateTimeOriginal: EXIF.getTag(this, "DateTimeOriginal"),
+                            Flash: EXIF.getTag(this, "Flash"),
+                            FocalLength: EXIF.getTag(this, "FocalLength"),
+                            WhiteBalance: EXIF.getTag(this, "WhiteBalance"),
+                            GPSLatitude: EXIF.getTag(this, "GPSLatitude"),
+                            GPSLongitude: EXIF.getTag(this, "GPSLongitude")
+                        };
+                        resolve(exifData);
+                    });
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+    
+    // Extract PDF Metadata
+    async function extractPdfMetadata(file) {
+        const reader = await file.arrayBuffer();
+        const pdfDoc = await PDFLib.PDFDocument.load(reader);
+        const title = pdfDoc.getTitle() || "No title";
+        const author = pdfDoc.getAuthor() || "No author";
+        return `Title: ${title}\nAuthor: ${author}`;
+    }
+    
+    // Extract DOCX Metadata (using Mammoth.js)
+    async function extractDocMetadata(file) {
+        const reader = new FileReader();
+        return new Promise((resolve) => {
+            reader.onload = function (event) {
+                mammoth.extractRawText({ arrayBuffer: event.target.result })
+                    .then(function (result) {
+                        resolve(`Text: ${result.value.substring(0, 200)}...`);  // Display part of the text
+                    });
+            };
+            reader.readAsArrayBuffer(file);
+        });
+    }
+    
+    // Extract PowerPoint Metadata (using pptx-parser or similar library)
+    async function extractPptMetadata(file) {
+        // You would use a PPTX parser library here, for example pptx-parser or others.
+        return "PPT Metadata extraction not implemented in this demo.";
+    }
+    
+    // Extract Video Metadata (Basic)
+    async function extractVideoMetadata(file) {
+        const videoElement = document.createElement('video');
+        const metadata = new Promise((resolve) => {
+            videoElement.onloadedmetadata = function () {
+                resolve(`Duration: ${videoElement.duration}s\nWidth: ${videoElement.videoWidth}\nHeight: ${videoElement.videoHeight}`);
+            };
+            const url = URL.createObjectURL(file);
+            videoElement.src = url;
+        });
+        return metadata;
+    }
+    
+    // Extract Audio Metadata (using simple properties)
+    async function extractAudioMetadata(file) {
+        const audio = new Audio(URL.createObjectURL(file));
+        const metadata = new Promise((resolve) => {
+            audio.onloadedmetadata = function () {
+                resolve(`Duration: ${audio.duration}s\nChannels: ${audio.mozChannels || 'N/A'}\nSample Rate: ${audio.sampleRate || 'N/A'}`);
+            };
+        });
+        return metadata;
+    }
+    </script>
+</body>
+</html>
