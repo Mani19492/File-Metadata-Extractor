@@ -5,11 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File Metadata Viewer</title>
     <link rel="stylesheet" href="style.css">
-    
-    <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
 </head>
 <body>
-
     <section>
         <div class="container">
             <div class="folder">
@@ -20,7 +17,7 @@
                 <div class="back-side cover"></div>
             </div>
             <label class="custom-file-upload">
-                <input class="title" type="file" id="fileInput"/>
+                <input class="title" type="file" id="fileInput" multiple accept="*/*"/>
                 Choose a file
             </label>
         </div>
@@ -48,61 +45,77 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
     
     <script>
     document.getElementById("fileInput").addEventListener("change", async function (event) {
-        const file = event.target.files[0];
-        if (file) {
+        const files = event.target.files;
+        const terminalOutput = document.getElementById("terminalOutput");
+        terminalOutput.innerHTML = '<pre class="output_text">Welcome to Terminal</pre>'; // Reset output
+
+        if (!files || files.length === 0) {
+            terminalOutput.innerHTML += '<pre class="output_text">No files selected.</pre>';
+            return;
+        }
+
+        for (const file of files) {
             const fileType = file.type;
-            const terminalOutput = document.getElementById("terminalOutput");
-            
-            let metadataOutput = `\nFile Name: ${file.name}\nFile Type: ${fileType}\nFile Size: ${file.size} bytes\n`;
-    
-            // Image Metadata Extraction
-            if (fileType.startsWith("image")) {
-                const exifData = await extractImageMetadata(file);
-                metadataOutput += `\nImage EXIF Data:\nMake: ${exifData.Make}\nModel: ${exifData.Model}\nXResolution: ${exifData.XResolution}\nYResolution: ${exifData.YResolution}\nResolutionUnit: ${exifData.ResolutionUnit}\nSoftware: ${exifData.Software}\nDateTime: ${exifData.DateTime}\nExposureTime: ${exifData.ExposureTime}\nFNumber: ${exifData.FNumber}\nExposureProgram: ${exifData.ExposureProgram}\nISOSpeedRatings: ${exifData.ISOSpeedRatings}\nExifVersion: ${exifData.ExifVersion}\nDateTimeOriginal: ${exifData.DateTimeOriginal}\nFlash: ${exifData.Flash}\nFocalLength: ${exifData.FocalLength}\nWhiteBalance: ${exifData.WhiteBalance}\n`;
-    
-                // Geo-location Data (if available)
-                if (exifData.GPSLatitude && exifData.GPSLongitude) {
-                    metadataOutput += `Geo-Location: Latitude: ${exifData.GPSLatitude}, Longitude: ${exifData.GPSLongitude}\n`;
-                } else {
-                    metadataOutput += "No GPS data found.\n";
+            let metadataOutput = `<pre class="output_text">\nFile Name: ${file.name}\nFile Type: ${fileType || 'Unknown'}\nFile Size: ${(file.size / 1024).toFixed(2)} KB\nLast Modified: ${new Date(file.lastModified).toLocaleString()}\n`;
+
+            try {
+                // Image Metadata Extraction
+                if (fileType.startsWith("image/")) {
+                    const exifData = await extractImageMetadata(file);
+                    metadataOutput += `Image EXIF Data:\n${formatMetadata(exifData)}\n`;
                 }
+                // PDF Metadata Extraction
+                else if (fileType === "application/pdf") {
+                    const metadata = await extractPdfMetadata(file);
+                    metadataOutput += `PDF Metadata:\n${metadata}\n`;
+                }
+                // Word Document (DOCX) Metadata Extraction
+                else if (fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+                    const metadata = await extractDocMetadata(file);
+                    metadataOutput += `DOCX Metadata:\n${metadata}\n`;
+                }
+                // PowerPoint Metadata Extraction
+                else if (fileType === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
+                    const metadata = await extractPptMetadata(file);
+                    metadataOutput += `PPTX Metadata:\n${metadata}\n`;
+                }
+                // Video Metadata Extraction
+                else if (fileType.startsWith("video/")) {
+                    const metadata = await extractVideoMetadata(file);
+                    metadataOutput += `Video Metadata:\n${metadata}\n`;
+                }
+                // Audio Metadata Extraction
+                else if (fileType.startsWith("audio/")) {
+                    const metadata = await extractAudioMetadata(file);
+                    metadataOutput += `Audio Metadata:\n${metadata}\n`;
+                }
+                else {
+                    metadataOutput += "Unsupported file type.\n";
+                }
+            } catch (error) {
+                metadataOutput += `Error: Failed to extract metadata for ${file.name}.\n`;
             }
-            // PDF Metadata Extraction
-            else if (fileType === "application/pdf") {
-                const metadata = await extractPdfMetadata(file);
-                metadataOutput += `PDF Metadata:\n${metadata}\n`;
-            }
-            // Word Document (DOCX) Metadata Extraction
-            else if (fileType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-                const metadata = await extractDocMetadata(file);
-                metadataOutput += `DOCX Metadata:\n${metadata}\n`;
-            }
-            // PowerPoint Metadata Extraction
-            else if (fileType.startsWith("application/vnd.ms-powerpoint")) {
-                const metadata = await extractPptMetadata(file);
-                metadataOutput += `PPT Metadata:\n${metadata}\n`;
-            }
-            // Video Metadata Extraction (Using Video Metadata)
-            else if (fileType.startsWith("video")) {
-                const metadata = await extractVideoMetadata(file);
-                metadataOutput += `Video Metadata:\n${metadata}\n`;
-            }
-            // Audio Metadata Extraction
-            else if (fileType.startsWith("audio")) {
-                const metadata = await extractAudioMetadata(file);
-                metadataOutput += `Audio Metadata:\n${metadata}\n`;
-            }
-            else {
-                metadataOutput += "Unsupported file type.\n";
-            }
-    
-            terminalOutput.innerText += metadataOutput;
+
+            metadataOutput += "</pre>";
+            terminalOutput.innerHTML += metadataOutput;
         }
     });
-    
+
+    // Helper function to format metadata
+    function formatMetadata(data) {
+        let output = "";
+        for (const [key, value] of Object.entries(data)) {
+            if (value && typeof value !== "object") {
+                output += `${key}: ${value}\n`;
+            }
+        }
+        return output || "No metadata available.\n";
+    }
+
     // Extract EXIF data for image
     async function extractImageMetadata(file) {
         return new Promise((resolve) => {
@@ -131,6 +144,9 @@
                             GPSLatitude: EXIF.getTag(this, "GPSLatitude"),
                             GPSLongitude: EXIF.getTag(this, "GPSLongitude")
                         };
+                        if (exifData.GPSLatitude && exifData.GPSLongitude) {
+                            exifData.GeoLocation = `Latitude: ${exifData.GPSLatitude}, Longitude: ${exifData.GPSLongitude}`;
+                        }
                         resolve(exifData);
                     });
                 };
@@ -139,76 +155,121 @@
             reader.readAsDataURL(file);
         });
     }
-    
+
     // Extract PDF Metadata
     async function extractPdfMetadata(file) {
-        const reader = await file.arrayBuffer();
-        const pdfDoc = await PDFLib.PDFDocument.load(reader);
-        const title = pdfDoc.getTitle() || "No title";
-        const author = pdfDoc.getAuthor() || "No author";
-        return `Title: ${title}\nAuthor: ${author}`;
+        const arrayBuffer = await file.arrayBuffer();
+        const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+        const metadata = {
+            Title: pdfDoc.getTitle() || "No title",
+            Author: pdfDoc.getAuthor() || "No author",
+            Subject: pdfDoc.getSubject() || "No subject",
+            Creator: pdfDoc.getCreator() || "No creator",
+            Producer: pdfDoc.getProducer() || "No producer",
+            CreationDate: pdfDoc.getCreationDate()?.toLocaleString() || "No creation date",
+            ModificationDate: pdfDoc.getModificationDate()?.toLocaleString() || "No modification date"
+        };
+        return formatMetadata(metadata);
     }
-    
-    // Extract DOCX Metadata (using Mammoth.js)
+
+    // Extract DOCX Metadata
     async function extractDocMetadata(file) {
-        const reader = new FileReader();
+        const arrayBuffer = await file.arrayBuffer();
         return new Promise((resolve) => {
-            reader.onload = function (event) {
-                mammoth.extractRawText({ arrayBuffer: event.target.result })
-                    .then(function (result) {
-                        resolve(`Text: ${result.value.substring(0, 200)}...`);  // Display part of the text
-                    });
-            };
-            reader.readAsArrayBuffer(file);
+            mammoth.extractRawText({ arrayBuffer })
+                .then((result) => {
+                    const metadata = {
+                        TextPreview: result.value.substring(0, 200) + (result.value.length > 200 ? "..." : "")
+                    };
+                    resolve(formatMetadata(metadata));
+                })
+                .catch(() => resolve("Failed to extract DOCX metadata."));
         });
     }
-    
-    // Extract PowerPoint Metadata (using pptx-parser or similar library)
+
+    // Extract PPTX Metadata (Placeholder, as no client-side PPTX parser is included)
     async function extractPptMetadata(file) {
-        // You would use a PPTX parser library here, for example pptx-parser or others.
-        return "PPT Metadata extraction not implemented in this demo.";
+        return "PPTX metadata extraction requires a server-side parser or specific client-side library.";
     }
-    
-    // Extract Video Metadata (Basic)
+
+    // Extract Video Metadata
     async function extractVideoMetadata(file) {
-        const videoElement = document.createElement('video');
-        const metadata = new Promise((resolve) => {
+        return new Promise((resolve) => {
+            const videoElement = document.createElement("video");
             videoElement.onloadedmetadata = function () {
-                resolve(`Duration: ${videoElement.duration}s\nWidth: ${videoElement.videoWidth}\nHeight: ${videoElement.videoHeight}`);
+                const metadata = {
+                    Duration: `${videoElement.duration.toFixed(2)} seconds`,
+                    Width: videoElement.videoWidth,
+                    Height: videoElement.videoHeight
+                };
+                URL.revokeObjectURL(videoElement.src);
+                resolve(formatMetadata(metadata));
             };
-            const url = URL.createObjectURL(file);
-            videoElement.src = url;
+            videoElement.onerror = function () {
+                URL.revokeObjectURL(videoElement.src);
+                resolve("Failed to extract video metadata.");
+            };
+            videoElement.src = URL.createObjectURL(file);
         });
-        return metadata;
     }
-    
-    // Extract Audio Metadata (using simple properties)
+
+    // Extract Audio Metadata
     async function extractAudioMetadata(file) {
-        const audio = new Audio(URL.createObjectURL(file));
-        const metadata = new Promise((resolve) => {
-            audio.onloadedmetadata = function () {
-                resolve(`Duration: ${audio.duration}s\nChannels: ${audio.mozChannels || 'N/A'}\nSample Rate: ${audio.sampleRate || 'N/A'}`);
-            };
+        return new Promise((resolve) => {
+            jsmediatags.read(file, {
+                onSuccess: function (tag) {
+                    const metadata = {
+                        Title: tag.tags.title || "No title",
+                        Artist: tag.tags.artist || "No artist",
+                        Album: tag.tags.album || "No album",
+                        Year: tag.tags.year || "No year",
+                        Genre: tag.tags.genre || "No genre"
+                    };
+                    const audio = new Audio(URL.createObjectURL(file));
+                    audio.onloadedmetadata = function () {
+                        metadata.Duration = `${audio.duration.toFixed(2)} seconds`;
+                        URL.revokeObjectURL(audio.src);
+                        resolve(formatMetadata(metadata));
+                    };
+                    audio.onerror = function () {
+                        URL.revokeObjectURL(audio.src);
+                        resolve(formatMetadata(metadata));
+                    };
+                },
+                onError: function () {
+                    const audio = new Audio(URL.createObjectURL(file));
+                    audio.onloadedmetadata = function () {
+                        const metadata = {
+                            Duration: `${audio.duration.toFixed(2)} seconds`
+                        };
+                        URL.revokeObjectURL(audio.src);
+                        resolve(formatMetadata(metadata));
+                    };
+                    audio.onerror = function () {
+                        URL.revokeObjectURL(audio.src);
+                        resolve("Failed to extract audio metadata.");
+                    };
+                }
+            });
         });
-        return metadata;
     }
     </script>
     <script>
     // Disable right-click
     document.addEventListener("contextmenu", function (e) {
-      e.preventDefault();
+        e.preventDefault();
     });
 
     // Disable F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
     document.addEventListener("keydown", function (e) {
-      if (
-        e.key === "F12" || 
-        (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "J")) || 
-        (e.ctrlKey && e.key === "U")
-      ) {
-        e.preventDefault();
-      }
+        if (
+            e.key === "F12" || 
+            (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "J")) || 
+            (e.ctrlKey && e.key === "U")
+        ) {
+            e.preventDefault();
+        }
     });
-  </script>
+    </script>
 </body>
 </html>
